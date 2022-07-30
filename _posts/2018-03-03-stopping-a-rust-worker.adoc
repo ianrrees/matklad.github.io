@@ -164,12 +164,15 @@ fn main() {
     for line in stdin.lock().lines() {
         let line = line.unwrap();
         if line == "stop" {
-            drop(worker.take());
-            continue
-        };
+            if let Some((sender, handle)) = worker.take() {
+                drop(sender);
+                handle.join().unwrap();
+                continue
+            }
+        }
 
         if let Some(ref worker) = worker {
-            worker.send(Msg::Echo(line)).unwrap();
+            worker.0.send(Msg::Echo(line)).unwrap();
         } else {
             println!("The worker has been stopped!");
         };
@@ -182,9 +185,9 @@ enum Msg {
     Echo(String),
 }
 
-fn spawn_worker() -> Sender<Msg> {
+fn spawn_worker() -> (Sender<Msg>, thread::JoinHandle<()>) {
     let (tx, rx) = channel();
-    thread::spawn(move || {
+    let handle = thread::spawn(move || {
         while let Ok(msg) = rx.recv() {
             match msg {
                 Msg::Echo(msg) => println!("{} ❤️", msg),
@@ -192,7 +195,7 @@ fn spawn_worker() -> Sender<Msg> {
         }
         println!("The worker has stopped!");
     });
-    tx
+    (tx, handle)
 }
 ----
 
